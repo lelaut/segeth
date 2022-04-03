@@ -1,7 +1,9 @@
 import React, { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 import Loading from "./Loading";
 import { isAddress } from "../lib/eth";
+import { sendAnalysisByAddress, sendAnalysisByCode } from "../lib/action";
 
 interface Props {
   hide: boolean;
@@ -9,13 +11,14 @@ interface Props {
 }
 
 const AnalysisFormModel = ({ hide, setHide }: Props) => {
+  const navigate = useNavigate();
   const inputFile = useRef(null);
   const modalRef = useRef<HTMLDivElement>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [tab, setTab] = useState(0);
   const [address, setAddress] = useState("");
-  const [contractName, setContractName] = useState<string>();
+  const [contractFile, setContractFile] = useState<File>();
   const tabItems = [
     {
       title: "By address",
@@ -36,10 +39,10 @@ const AnalysisFormModel = ({ hide, setHide }: Props) => {
       title: "By code",
       component: (
         <div className="w-full flex">
-          {contractName ? (
+          {contractFile?.name ? (
             <button
               className="px-2 bg-[#0a0a0a] text-red-600 transition hover:bg-transparent"
-              onClick={() => setContractName(undefined)}
+              onClick={() => setContractFile(undefined)}
             >
               Remove
             </button>
@@ -61,18 +64,19 @@ const AnalysisFormModel = ({ hide, setHide }: Props) => {
               const contract = event.target.files?.item(0);
 
               if (contract) {
-                setContractName(contract.name);
+                setContractFile(contract);
               }
             }}
           />
           <div className="flex-1 w-full bg-white bg-opacity-5 pl-2 text-[#aaa]">
-            {contractName ?? "contract.sol"}
+            {contractFile?.name ?? "contract.sol"}
           </div>
         </div>
       ),
     },
   ];
-  const canRun = isAddress(address);
+  const canRun =
+    (tab === 0 && isAddress(address)) || (tab === 1 && contractFile?.name);
 
   useEffect(() => {
     function handleClickOutside(event: any) {
@@ -85,6 +89,26 @@ const AnalysisFormModel = ({ hide, setHide }: Props) => {
       document.removeEventListener("mousedown", handleClickOutside);
     };
   }, [modalRef, setHide]);
+
+  const handleRun = async () => {
+    setLoading(true);
+
+    try {
+      // By address
+      if (tab === 0) {
+        navigate("/analyze/" + (await sendAnalysisByAddress(address)));
+      }
+      // By code
+      else {
+        navigate("/analyze/" + (await sendAnalysisByCode(contractFile!)));
+      }
+    } catch (error: any) {
+      console.log({ error });
+      setError("Unable to compile or find this contract");
+    }
+
+    setLoading(false);
+  };
 
   return (
     <div
@@ -125,15 +149,16 @@ const AnalysisFormModel = ({ hide, setHide }: Props) => {
         <div className="flex justify-between">
           <p className="text-red-600">{error}</p>
           <button
+            onClick={handleRun}
+            disabled={!canRun}
             className={
-              "flex items-center px-4 rounded-sm " +
+              "flex items-center px-4 py-px rounded-sm " +
               (canRun
                 ? "bg-blue-600 transition hover:opacity-70"
                 : "bg-gray-500")
             }
-            disabled={!canRun}
           >
-            <Loading hide={!loading} className="h-4 w-4" />
+            <Loading hide={!loading} className="h-3 w-3" />
             <p>{loading ? "Running..." : "Run"}</p>
           </button>
         </div>

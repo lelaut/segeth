@@ -1,50 +1,60 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import Select from "react-select";
 
 import AnalysisFormModel from "../components/AnalysisFormModel";
+import Loading from "../components/Loading";
 import Logo from "../components/Logo";
 import Whitepaper from "../components/Whitepaper";
+import { getAnalysis, Analysis } from "../lib/action";
 import { isAddress } from "../lib/eth";
 
 interface VulnerabilityTooltip {
   x: number;
   y: number;
-  tip: number;
 }
 
-const vulnerabilityOptions = [
-  { value: 0, label: "All vulnerabilities" },
-  { value: 1, label: "Reentrancy without eth" },
-  { value: 2, label: "Reentrancy with eth" },
-];
+// const vulnerabilityOptions = [
+//   { value: 0, label: "All vulnerabilities" },
+//   { value: 1, label: "Reentrancy without eth" },
+//   { value: 2, label: "Reentrancy with eth" },
+// ];
 
+// TODO: make a special page for when the contract don't have any vulnerability
 const AnalyzePage = () => {
   const [hideModal, setHideModal] = useState(true);
-  const [vulnerability, setVulnerability] = useState(0);
+  const [vulnerability, setVulnerability] = useState("All vulnerabilities");
   const [tooltip, setTooltip] = useState<VulnerabilityTooltip>();
   const [toolSelected, setToolSelected] = useState(-1);
   const [hideNav, setHideNav] = useState(true);
+  const [analysis, setAnalysis] = useState<Analysis | undefined>();
   const params = useParams();
-  const results = [
-    { vulnerability: [1, 0], time: 100, name: "Slither" },
-    { vulnerability: [-1, 1], time: 1000, name: "Olient" },
-  ];
+  // const results = [
+  //   { vulnerability: [1, 0], time: 100, name: "Slither" },
+  //   { vulnerability: [-1, 1], time: 1000, name: "Olient" },
+  // ];
+  const totalVunerabilities = Array.from(
+    new Set(analysis?.results.flatMap((r) => r.vulnerabilities))
+  );
+  const hasAnalysis = typeof analysis !== "undefined";
 
-  const handleEnterResultValue = (
-    e: React.MouseEvent<HTMLDivElement>,
-    vulnerability: number
-  ) => {
+  const handleEnterResultValue = (e: React.MouseEvent<HTMLDivElement>) => {
     setTooltip({
-      tip: vulnerability,
       x: (e.target as any).offsetLeft + 1,
       y: (e.target as any).offsetTop - 1,
     });
-    console.log(vulnerability);
   };
   const handleLeaveResultValue = () => {
     setTooltip(undefined);
   };
+
+  useEffect(() => {
+    const handleLoad = async () => {
+      setAnalysis(await getAnalysis(params.target!));
+    };
+
+    handleLoad();
+  }, [params]);
 
   return (
     <>
@@ -65,9 +75,9 @@ const AnalyzePage = () => {
 
         <div className="flex flex-col flex-1">
           <div className="flex-1 flex flex-col gap-4 overflow-y-auto">
-            <div className="px-2">
-              <h2 className="mb-1 text-sm opacity-80">Target</h2>
-              {isAddress(params.target!) ? (
+            {isAddress(params.target!) ? (
+              <div className="px-2">
+                <h2 className="mb-1 text-sm opacity-80">Target</h2>
                 <a
                   href={`https://etherscan.io/address/${params.target}`}
                   target="_blank"
@@ -76,148 +86,147 @@ const AnalyzePage = () => {
                 >
                   {params.target}
                 </a>
-              ) : (
-                <p>{params.target}</p>
-              )}
-            </div>
+              </div>
+            ) : (
+              <></>
+            )}
 
-            <div className="px-2">
-              <h2 className="mb-1 text-sm opacity-80">Vulnerability</h2>
-              <Select
-                defaultValue={vulnerabilityOptions[vulnerability]}
-                onChange={(selected: any) => setVulnerability(selected.value)}
-                options={vulnerabilityOptions as any}
-                isSearchable={false}
-                styles={{
-                  menu: (provided) => ({
-                    ...provided,
-                    zIndex: 100,
-                  }),
-                }}
-                theme={(theme) => ({
-                  ...theme,
-                  spacing: {
-                    ...theme.spacing,
-                    controlHeight: 0,
-                    baseUnit: 2,
-                  },
-                  borderRadius: 1,
-                  colors: {
-                    ...theme.colors,
-                    primary25: "#2c333d",
-                    neutral0: "#191d23",
-                    neutral20: "#ffffff33",
-                    neutral80: "#ffffff77",
-                  },
-                })}
-              />
-            </div>
+            {!hasAnalysis ? (
+              <></>
+            ) : (
+              <>
+                <div className="px-2">
+                  <h2 className="mb-1 text-sm opacity-80">Vulnerability</h2>
+                  <Select
+                    // defaultValue={vulnerabilityOptions[vulnerability]}
+                    defaultValue={{
+                      value: vulnerability,
+                      label: vulnerability,
+                    }}
+                    onChange={(selected: any) =>
+                      setVulnerability(selected.value)
+                    }
+                    options={["All vulnerabilities"]
+                      .concat(totalVunerabilities)
+                      .map((item) => ({ value: item, label: item }))}
+                    isSearchable={false}
+                    styles={{
+                      menu: (provided) => ({
+                        ...provided,
+                        zIndex: 100,
+                      }),
+                    }}
+                    theme={(theme) => ({
+                      ...theme,
+                      spacing: {
+                        ...theme.spacing,
+                        controlHeight: 0,
+                        baseUnit: 2,
+                      },
+                      borderRadius: 1,
+                      colors: {
+                        ...theme.colors,
+                        primary25: "#2c333d",
+                        neutral0: "#191d23",
+                        neutral20: "#ffffff33",
+                        neutral80: "#ffffff77",
+                      },
+                    })}
+                  />
+                </div>
 
-            <div>
-              <h2 className="pl-2 mb-1 text-sm opacity-80">Results</h2>
-              <ul className="bg-white bg-opacity-5 py-px gap-px flex flex-col">
-                {vulnerability === 0
-                  ? results.map((item, index) => (
-                      <li key={index}>
-                        <div className="px-4 py-2 bg-secondary flex items-center justify-between">
-                          <div>
-                            <div className="flex gap-1">
-                              <h2>{item.name}</h2>
+                <div>
+                  <h2 className="pl-2 mb-1 text-sm opacity-80">Results</h2>
+                  <ul className="bg-white bg-opacity-5 py-px gap-px flex flex-col">
+                    {!hasAnalysis ? (
+                      <></>
+                    ) : vulnerability === "All vulnerabilities" ? (
+                      analysis.results.map((item, index) => (
+                        <li key={index}>
+                          <div className="px-4 py-2 bg-secondary flex items-center justify-between">
+                            <div>
+                              <div className="flex gap-1">
+                                <h2>{item.name}</h2>
+                              </div>
+                              <p className="text-xs opacity-50">
+                                {item.time} ns
+                              </p>
                             </div>
-                            <p className="text-xs opacity-50">{item.time}ms</p>
+                            <button
+                              className={
+                                `text-xs bg-white bg-opacity-5 rounded-full px-3 border border-white/5 font-bold hover:after:content-['${
+                                  toolSelected !== index ? "▾" : ""
+                                }']` +
+                                (item.vulnerabilities.length === 0
+                                  ? " bg-green-700 bg-opacity-100 cursor-default"
+                                  : "")
+                              }
+                              onClick={() =>
+                                setToolSelected(
+                                  toolSelected === index ? -1 : index
+                                )
+                              }
+                            >
+                              {item.vulnerabilities.length === 0
+                                ? "Safe"
+                                : `${item.vulnerabilities.length} / ${
+                                    totalVunerabilities.length
+                                  } ${toolSelected === index ? "▴" : ""}`}
+                            </button>
                           </div>
-                          <button
-                            className={`text-xs bg-white bg-opacity-5 rounded-full px-3 border border-white/5 font-bold hover:after:content-['${
-                              toolSelected !== index ? "▾" : ""
-                            }']`}
-                            onClick={() =>
-                              setToolSelected(
-                                toolSelected === index ? -1 : index
-                              )
+                          <ul
+                            className={
+                              "bg-[#0c1016] text-sm flex flex-col gap-px" +
+                              (toolSelected !== index ? " hidden" : "")
                             }
                           >
-                            {`${
-                              item.vulnerability.filter((v) => v === 1).length
-                            } / ${
-                              item.vulnerability.filter((v) => v !== -1).length
-                            } ${toolSelected === index ? "▴" : ""}`}
-                          </button>
-                        </div>
-                        <ul
-                          className={
-                            "bg-[#0c1016] text-sm flex flex-col gap-px" +
-                            (toolSelected !== index ? " hidden" : "")
-                          }
-                        >
-                          {item.vulnerability
-                            .filter((v) => v !== -1)
-                            .map((subItem, jndex) => (
+                            {item.vulnerabilities.map((subItem, jndex) => (
                               <li
                                 key={jndex}
                                 className="px-4 py-1 bg-[#10151d] flex justify-between items-center"
                               >
-                                <p>{vulnerabilityOptions[jndex + 1].label}</p>
-                                <div
-                                  className={
-                                    "w-[8px] h-[8px] rounded-full" +
-                                    (subItem === 0
-                                      ? " bg-green-500"
-                                      : " bg-red-500")
-                                  }
-                                />
+                                <p>{subItem}</p>
+                                <div className="w-[8px] h-[8px] rounded-full bg-red-500" />
                               </li>
                             ))}
-                        </ul>
-                      </li>
-                    ))
-                  : results.map((item, index) => (
-                      <li
-                        key={index}
-                        className="px-4 py-2 bg-secondary flex items-center justify-between"
-                      >
-                        <div>
-                          <div className="flex gap-1">
-                            <h2>{item.name}</h2>
+                          </ul>
+                        </li>
+                      ))
+                    ) : (
+                      analysis.results.map((item, index) => (
+                        <li
+                          key={index}
+                          className="px-4 py-2 bg-secondary flex items-center justify-between"
+                        >
+                          <div>
+                            <div className="flex gap-1">
+                              <h2>{item.name}</h2>
+                            </div>
+                            <p className="text-xs opacity-50">{item.time} ns</p>
                           </div>
-                          <p className="text-xs opacity-50">{item.time}ms</p>
-                        </div>
-                        <div
-                          className={
-                            "w-[14px] h-[14px] z-20 rounded-full" +
-                            (item.vulnerability[vulnerability - 1] === 0
-                              ? " bg-green-500"
-                              : item.vulnerability[vulnerability - 1] === 1
-                              ? " bg-red-500"
-                              : " bg-gray-500")
-                          }
-                          onMouseEnter={(e) =>
-                            handleEnterResultValue(
-                              e,
-                              item.vulnerability[vulnerability - 1] + 1
-                            )
-                          }
-                          onMouseLeave={(e) => handleLeaveResultValue()}
-                        />
-                      </li>
-                    ))}
-              </ul>
+                          <div
+                            className="w-[14px] h-[14px] z-20 rounded-full bg-red-500"
+                            onMouseEnter={(e) => handleEnterResultValue(e)}
+                            onMouseLeave={(e) => handleLeaveResultValue()}
+                          />
+                        </li>
+                      ))
+                    )}
+                  </ul>
 
-              {tooltip ? (
-                <p
-                  className={
-                    "absolute font-bold text-xs pl-5 pr-3 rounded-full" +
-                    [" bg-gray-600", " bg-green-600", " bg-red-600"][
-                      tooltip.tip
-                    ]
-                  }
-                  style={{ left: tooltip.x, top: tooltip.y }}
-                >
-                  {["Unavailable", "Secure", "Vulnerable"][tooltip.tip]}
-                </p>
-              ) : (
-                <></>
-              )}
-            </div>
+                  {tooltip ? (
+                    <p
+                      className="absolute font-bold text-xs pl-5 pr-3 rounded-full bg-red-600"
+                      style={{ left: tooltip.x, top: tooltip.y }}
+                    >
+                      Vulnerable
+                    </p>
+                  ) : (
+                    <></>
+                  )}
+                </div>
+              </>
+            )}
           </div>
 
           <div className="flex p-4">
@@ -231,7 +240,13 @@ const AnalyzePage = () => {
         </div>
       </aside>
 
-      <Whitepaper select={vulnerability - 1} className="md:ml-[300px]" />
+      {hasAnalysis ? (
+        <Whitepaper select={vulnerability} className="md:ml-[300px]" />
+      ) : (
+        <div className="md:ml-[300px] flex h-screen items-center justify-center">
+          <Loading hide={false} className="w-16 md:w-24 h-16 md:h-24" />
+        </div>
+      )}
 
       <AnalysisFormModel hide={hideModal} setHide={setHideModal} />
     </>
