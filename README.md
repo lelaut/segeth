@@ -1,5 +1,7 @@
 # Segeth
 
+Segeth is an online tool used to search for vulnerabilities in [Smart Contracts](https://ethereum.org/en/developers/docs/smart-contracts/). For now we only use [Slither](https://github.com/crytic/slither) but soon we shall be adding new ones.
+
 ## How to run?
 
 To run this project in a docker container you will need to execute the following commands:
